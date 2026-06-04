@@ -52,7 +52,10 @@ export function isPrivateIPv4(hostname: string): boolean {
     // Basic structural validation — must be four numeric octets
     const parts = hostname.split('.').map(Number);
     if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return false;
-    return isBlockedIP(hostname);
+    // Normalize the IP address by trimming whitespace and reconstructing from parsed octets
+    // This handles edge cases like "  10.0.0.1  " which Number() accepts but ipaddr.parse() rejects
+    const normalized = parts.join('.');
+    return isBlockedIP(normalized);
 }
 
 /**
