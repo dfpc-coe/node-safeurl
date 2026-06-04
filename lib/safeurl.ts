@@ -49,9 +49,11 @@ function isBlockedIP(address: string): boolean {
  * Delegates to `@microsoft/antissrf` `IPAddressRanges.recommendedLatest`.
  */
 export function isPrivateIPv4(hostname: string): boolean {
-    // Basic structural validation — must be four numeric octets
-    const parts = hostname.split('.').map(Number);
-    if (parts.length !== 4 || parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return false;
+    // Basic structural validation — must be four numeric octets with no empty segments
+    const segments = hostname.split('.');
+    if (segments.length !== 4 || segments.some(s => s.trim() === '')) return false;
+    const parts = segments.map(Number);
+    if (parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return false;
     // Normalize the IP address by trimming whitespace and reconstructing from parsed octets
     // This handles edge cases like "  10.0.0.1  " which Number() accepts but ipaddr.parse() rejects
     const normalized = parts.join('.');
