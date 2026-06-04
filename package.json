@@ -1,0 +1,54 @@
+{
+    "name": "@tak-ps/node-safeurl",
+    "type": "module",
+    "version": "1.0.0",
+    "description": "SSRF-safe URL validation library for Node.js",
+    "author": "Nick Ingalls <nick@ingalls.ca>",
+    "types": "index.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "test": "c8 --reporter=lcov --reporter html tsx --test test/*.ts",
+        "lint": "eslint *.ts lib/ test/",
+        "doc": "typedoc index.ts",
+        "build": "tsc --build && cp package.json dist/",
+        "pretest": "npm run lint"
+    },
+    "engines": {
+        "node": ">= 22"
+    },
+    "dependencies": {
+        "@microsoft/antissrf": "^1.0.0",
+        "ipaddr.js": "^2.4.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^25.0.0",
+        "c8": "^11.0.0",
+        "eslint": "^10.0.0",
+        "tsx": "^4.20.3",
+        "typedoc": "^0.28.0",
+        "typescript": "^6.0.0",
+        "typescript-eslint": "^8.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/dfpc-coe/node-safeurl.git"
+    },
+    "keywords": [
+        "ssrf",
+        "url",
+        "validation",
+        "security",
+        "safe-url"
+    ],
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/dfpc-coe/node-safeurl/issues"
+    },
+    "homepage": "https://github.com/dfpc-coe/node-safeurl#readme"
+}
