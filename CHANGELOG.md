@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.0.1 - 2025-06-05
+
+- :bug: Fix types path for built output
+
 ### v1.0.0 - 2025-06-04
 
 - :tada: Initial release — SSRF-safe URL validation library
