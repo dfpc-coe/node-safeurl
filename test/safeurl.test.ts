@@ -130,6 +130,26 @@ test('isSafeUrl — blocked hostnames', async (t) => {
         assert.strictEqual(r.safe, false);
         assert.ok(r.reason?.includes('blocked hostname'));
     });
+
+    await t.test('localhost. (trailing dot) is blocked', async () => {
+        // Node.js preserves trailing dots in url.hostname; normalise before comparing.
+        const r = await isSafeUrl('http://localhost./');
+        assert.strictEqual(r.safe, false);
+        assert.ok(r.reason?.includes('blocked hostname'));
+    });
+
+    await t.test('foo.localhost subdomain is blocked', async () => {
+        // Modern resolvers route *.localhost to 127.0.0.1.
+        const r = await isSafeUrl('http://foo.localhost/');
+        assert.strictEqual(r.safe, false);
+        assert.ok(r.reason?.includes('blocked hostname'));
+    });
+
+    await t.test('foo.localhost. (trailing dot subdomain) is blocked', async () => {
+        const r = await isSafeUrl('http://foo.localhost./');
+        assert.strictEqual(r.safe, false);
+        assert.ok(r.reason?.includes('blocked hostname'));
+    });
 });
 
 test('isSafeUrl — RFC 1918 / loopback / special ranges blocked', async (t) => {

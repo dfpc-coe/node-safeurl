@@ -10,6 +10,7 @@ interface BlockEntry {
     cidr: string;
     range: [ipaddr.IPv4 | ipaddr.IPv6, number];
 }
+
 const blocked: BlockEntry[] = IPAddressRanges.recommendedLatest
     .map((cidr) => {
         try {
@@ -49,15 +50,14 @@ function isBlockedIP(address: string): boolean {
  * Delegates to `@microsoft/antissrf` `IPAddressRanges.recommendedLatest`.
  */
 export function isPrivateIPv4(hostname: string): boolean {
-    // Basic structural validation — must be four numeric octets with no empty segments
+    // Must be exactly four segments; each must be non-empty, numeric, and within 0–255.
+    // Number() normalizes whitespace-padded and zero-prefixed strings (e.g. "01" → 1,
+    // "  10  " → 10), which handles forms that ipaddr.parse() would otherwise reject.
     const segments = hostname.split('.');
-    if (segments.length !== 4 || segments.some(s => s.trim() === '')) return false;
+    if (segments.length !== 4) return false;
     const parts = segments.map(Number);
-    if (parts.some(p => Number.isNaN(p) || p < 0 || p > 255)) return false;
-    // Normalize the IP address by trimming whitespace and reconstructing from parsed octets
-    // This handles edge cases like "  10.0.0.1  " which Number() accepts but ipaddr.parse() rejects
-    const normalized = parts.join('.');
-    return isBlockedIP(normalized);
+    if (parts.some((p, i) => segments[i].trim() === '' || Number.isNaN(p) || p < 0 || p > 255)) return false;
+    return isBlockedIP(parts.join('.'));
 }
 
 /**
@@ -67,7 +67,7 @@ export function isPrivateIPv4(hostname: string): boolean {
 export function isPrivateIPv6(address: string): boolean {
     // Strip zone ID (e.g. %eth0) and normalise to lowercase
     const addr = address.toLowerCase().split('%')[0];
-    if (!addr.includes(':') || addr === '') return false;
+    if (!addr.includes(':')) return false;
     return isBlockedIP(addr);
 }
 
@@ -83,10 +83,13 @@ export async function isSafeUrl(href: string): Promise<{ safe: boolean; url?: UR
         return { safe: false, url, reason: `unsupported protocol: ${url.protocol}` };
     }
 
-    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, ''); // strip IPv6 brackets
+    // Strip IPv6 brackets and any trailing dot (trailing dot is valid per DNS but bypasses
+    // literal hostname checks — e.g. "localhost." has the same meaning as "localhost").
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
 
-    // Block known-bad hostname literals
-    if (hostname === 'localhost' || hostname === '0.0.0.0') {
+    // Block known-bad hostname literals, including all subdomains of localhost
+    // (modern OS resolvers route *.localhost to 127.0.0.1).
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '0.0.0.0') {
         return { safe: false, url, reason: `blocked hostname: ${hostname}` };
     }
 
