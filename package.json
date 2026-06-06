@@ -23,7 +23,10 @@
     },
     "dependencies": {
         "@microsoft/antissrf": "^1.0.0",
-        "ipaddr.js": "^2.4.0"
+        "@openaddresses/batch-error": "^2.13.1",
+        "@sinclair/typebox": "^0.34.0",
+        "ipaddr.js": "^2.4.0",
+        "undici": "^8.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
