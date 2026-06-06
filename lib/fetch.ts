@@ -13,12 +13,19 @@ export interface FetchInit extends RequestInit {
 }
 
 export class TypedResponse extends Response {
+    readonly #url: string;
+
     constructor(response: Response) {
         super(response.body, {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,
         });
+        this.#url = response.url;
+    }
+
+    override get url(): string {
+        return this.#url;
     }
 
     typed<T extends TSchema>(type: T): Promise<Static<T>>;
@@ -42,10 +49,19 @@ export class TypedResponse extends Response {
         if (result) return body;
 
         const errors = typeChecker.Errors(body);
-        const firstError = errors.First();
+        const firstError = errors.next().value;
 
-        throw new Err(500, null, `Internal Validation Error: ${JSON.stringify(firstError)}`);
+        throw new Err(500, null, `Internal Validation Error: ${JSON.stringify(firstError ?? null)}`);
     }
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 10;
+
+function extractHref(input: RequestInfo): string {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.href;
+    return (input as { url?: string }).url ?? input.toString();
 }
 
 export default async function (
@@ -55,9 +71,54 @@ export default async function (
     const { safeUrl = true, ...fetchInit } = init ?? {};
 
     if (safeUrl) {
-        const check = await isSafeUrl(input.toString());
+        // Validate the initial URL.
+        const check = await isSafeUrl(extractHref(input));
         if (!check.safe) {
             throw new Err(403, null, `Unsafe URL: ${check.reason}`);
+        }
+
+        // Follow redirects manually so each hop is re-validated against isSafeUrl,
+        // preventing SSRF via a public URL that 30x-redirects to an internal address.
+        const callerRedirect = fetchInit.redirect;
+        fetchInit.redirect = 'manual';
+
+        let currentInput: RequestInfo = input;
+        let hops = 0;
+
+        while (true) {
+            const response = await fetch(currentInput, fetchInit);
+
+            if (!REDIRECT_STATUSES.has(response.status) || callerRedirect === 'manual') {
+                return new TypedResponse(response);
+            }
+
+            if (callerRedirect === 'error') {
+                throw new Err(400, null, 'Redirects are not allowed');
+            }
+
+            if (++hops > MAX_REDIRECTS) {
+                throw new Err(400, null, 'Too many redirects');
+            }
+
+            const location = response.headers.get('location');
+            if (!location) {
+                return new TypedResponse(response);
+            }
+
+            // Resolve relative Location headers against the current request URL.
+            const resolved = new URL(location, extractHref(currentInput)).href;
+            const locationCheck = await isSafeUrl(resolved);
+            if (!locationCheck.safe) {
+                throw new Err(403, null, `Unsafe redirect URL: ${locationCheck.reason}`);
+            }
+
+            // For 303 and non-GET/HEAD 301/302, the method changes to GET per spec.
+            if (response.status === 303 || (response.status !== 307 && response.status !== 308)) {
+                fetchInit.method = 'GET';
+                fetchInit.body = undefined;
+            }
+
+            currentInput = resolved;
         }
     }
 
