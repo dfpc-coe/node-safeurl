@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.1.0 - 2026-06-06
+
+- :rocket: Implement Type Safe fetch wrapper to prevent SSRF vulnerabilities in HTTP requests
+
 ### v1.0.1 - 2025-06-05
 
 - :bug: Fix types path for built output
