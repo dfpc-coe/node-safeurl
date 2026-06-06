@@ -13,19 +13,18 @@ export interface FetchInit extends RequestInit {
 }
 
 export class TypedResponse extends Response {
-    readonly #url: string;
-
     constructor(response: Response) {
         super(response.body, {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,
         });
-        this.#url = response.url;
-    }
-
-    override get url(): string {
-        return this.#url;
+        const originalUrl = response.url;
+        Object.defineProperty(this, 'url', {
+            get: () => originalUrl,
+            enumerable: true,
+            configurable: true,
+        });
     }
 
     typed<T extends TSchema>(type: T): Promise<Static<T>>;
