@@ -48,8 +48,7 @@ export class TypedResponse extends Response {
         if (result) return body;
 
         const errors = typeChecker.Errors(body);
-        const firstError = [...errors][0];
-
+        const firstError = errors[Symbol.iterator]().next().value ?? null;
         throw new Err(500, null, `Internal Validation Error: ${JSON.stringify(firstError ?? null)}`);
     }
 }
