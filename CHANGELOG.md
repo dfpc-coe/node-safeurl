@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.2.0 - 2026-06-06
+
+- :rocket: Expose a `fetch` wrapper that integrates `isSafeUrl()` checks to prevent SSRF vulnerabilities in HTTP requests
+
 ### v1.1.0 - 2026-06-06
 
 - :rocket: Implement Type Safe fetch wrapper to prevent SSRF vulnerabilities in HTTP requests
