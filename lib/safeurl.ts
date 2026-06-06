@@ -83,9 +83,11 @@ export async function isSafeUrl(href: string): Promise<{ safe: boolean; url?: UR
         return { safe: false, url, reason: `unsupported protocol: ${url.protocol}` };
     }
 
-    // Strip IPv6 brackets and any trailing dot (trailing dot is valid per DNS but bypasses
-    // literal hostname checks — e.g. "localhost." has the same meaning as "localhost").
-    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    // Strip IPv6 brackets, any trailing dot, and any zone ID (e.g. %eth0 or percent-encoded
+    // %25eth0). Zone IDs are valid in IPv6 link-local syntax but ipaddr.js cannot parse the
+    // percent-encoded form, causing isBlockedIP() to return false and silently allowing
+    // addresses like fe80::1%25eth0 through the block-list check.
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/g, '').split('%')[0];
 
     // Block known-bad hostname literals, including all subdomains of localhost
     // (modern OS resolvers route *.localhost to 127.0.0.1).

@@ -71,6 +71,12 @@ export default async function (
     const { safeUrl = true, ...fetchInit } = init ?? {};
 
     if (safeUrl) {
+        // Reject custom dispatchers: they can route requests to arbitrary internal
+        // services regardless of what URL was validated, bypassing SSRF protection.
+        if ('dispatcher' in fetchInit) {
+            throw new Err(403, null, 'Custom dispatchers are not permitted when safeUrl is enabled');
+        }
+
         // Validate the initial URL.
         const check = await isSafeUrl(extractHref(input));
         if (!check.safe) {

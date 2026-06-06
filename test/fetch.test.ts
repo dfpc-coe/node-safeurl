@@ -53,6 +53,29 @@ test('safeFetch — rejects redirect to private address', async () => {
     assert.strictEqual(check.safe, false, 'private redirect target must be detected as unsafe');
 });
 
+test('safeFetch — rejects custom dispatcher when safeUrl is enabled', async () => {
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    await assert.rejects(
+        () => safeFetch('http://example.com/', { dispatcher: agent }),
+        (err: Error) => {
+            assert.ok(err.message.includes('Custom dispatchers are not permitted'));
+            return true;
+        },
+    );
+});
+
+test('safeFetch — allows custom dispatcher when safeUrl is disabled', async () => {
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const client = agent.get('http://example.com');
+    client.intercept({ path: '/', method: 'GET' }).reply(200, '{}');
+    const res = await safeFetch('http://example.com/', { safeUrl: false, dispatcher: agent });
+    assert.strictEqual(res.status, 200);
+    await agent.close();
+});
+
 test('TypedResponse — preserves wrapped response url', () => {
     const raw = new Response('{}', { status: 200 });
     const typed = new TypedResponse(raw);

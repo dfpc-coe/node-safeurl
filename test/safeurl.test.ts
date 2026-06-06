@@ -200,7 +200,7 @@ test('isSafeUrl — private IPv6 literal addresses blocked', async (t) => {
         ['http://[fd00::1]/', 'fd00::1'],
         ['http://[fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]/', 'fdff:ffff:…'],
         ['http://[fe80::1]/', 'fe80::1'],
-        ['http://[fe80::1%25eth0]/', 'fe80::1%eth0 (zone id)'],
+        ['http://[fe80::1%25eth0]/', 'fe80::1%25eth0 (zone id percent-encoded)'],
         ['http://[febf::1]/', 'febf::1'],
         ['http://[::ffff:10.0.0.1]/', '::ffff:10.0.0.1 (IPv4-mapped private)'],
         ['http://[::ffff:192.168.1.1]/', '::ffff:192.168.1.1 (IPv4-mapped RFC1918)'],
@@ -260,6 +260,26 @@ test('isPrivateIPv6 — public addresses', async (t) => {
     });
     await t.test('2001:db8::1 is private (documentation prefix in @microsoft/antissrf)', () => {
         assert.strictEqual(isPrivateIPv6('2001:db8::1'), true);
+    });
+});
+
+test('isSafeUrl — NAT64 64:ff9b::/96 blocked', async (t) => {
+    await t.test('64:ff9b::7f00:1 (NAT64 for 127.0.0.1) is blocked', async () => {
+        const r = await isSafeUrl('http://[64:ff9b::7f00:1]/');
+        assert.strictEqual(r.safe, false);
+    });
+
+    await t.test('64:ff9b::c0a8:101 (NAT64 for 192.168.1.1) is blocked', async () => {
+        const r = await isSafeUrl('http://[64:ff9b::c0a8:101]/');
+        assert.strictEqual(r.safe, false);
+    });
+});
+
+test('isSafeUrl — IPv6 zone ID bypass prevented', async (t) => {
+    await t.test('fe80::1%25eth0 (percent-encoded zone id) is blocked', async () => {
+        const r = await isSafeUrl('http://[fe80::1%25eth0]/');
+        assert.strictEqual(r.safe, false);
+        assert.ok(r.reason?.includes('blocked IP'));
     });
 });
 
