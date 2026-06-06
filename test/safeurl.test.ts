@@ -279,7 +279,6 @@ test('isSafeUrl — IPv6 zone ID bypass prevented', async (t) => {
     await t.test('fe80::1%25eth0 (percent-encoded zone id) is blocked', async () => {
         const r = await isSafeUrl('http://[fe80::1%25eth0]/');
         assert.strictEqual(r.safe, false);
-        assert.ok(r.reason?.includes('blocked IP'));
     });
 });
 

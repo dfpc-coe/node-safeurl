@@ -38,13 +38,14 @@ test('safeFetch — rejects unsafe URLs by default', async (t) => {
 });
 
 test('safeFetch — safeUrl: false bypasses SSRF check', async () => {
-    await assert.rejects(
-        () => safeFetch('http://127.0.0.1/', { safeUrl: false }),
-        (err: Error) => {
-            assert.ok(!err.message.includes('Unsafe URL'), 'should not be an SSRF guard error');
-            return true;
-        },
-    );
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const client = agent.get('http://127.0.0.1');
+    client.intercept({ path: '/', method: 'GET' }).reply(200, '{}');
+    const res = await safeFetch('http://127.0.0.1/', { safeUrl: false, dispatcher: agent });
+    assert.strictEqual(res.status, 200);
+    await agent.close();
 });
 
 test('safeFetch — rejects redirect to private address', async () => {
