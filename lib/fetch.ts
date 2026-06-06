@@ -116,8 +116,13 @@ export default async function (
                 throw new Err(403, null, `Unsafe redirect URL: ${locationCheck.reason}`);
             }
 
-            // For 303 and non-GET/HEAD 301/302, the method changes to GET per spec.
-            if (response.status === 303 || (response.status !== 307 && response.status !== 308)) {
+            // For 303, switch to GET for non-GET/HEAD methods. For 301/302, switch to GET only for POST.
+            const method = (fetchInit.method ?? 'GET').toUpperCase();
+            const switchToGet =
+                (response.status === 303 && method !== 'GET' && method !== 'HEAD') ||
+                ((response.status === 301 || response.status === 302) && method === 'POST');
+
+            if (switchToGet) {
                 fetchInit.method = 'GET';
                 fetchInit.body = undefined;
             }
