@@ -48,7 +48,7 @@ test('safeFetch — safeUrl: false bypasses SSRF check', async () => {
     await agent.close();
 });
 
-test('safeFetch — rejects redirect to private address', async () => {
+test('isSafeUrl — rejects private redirect target', async () => {
     const { isSafeUrl } = await import('../lib/safeurl.js');
     const check = await isSafeUrl('http://192.168.0.1/');
     assert.strictEqual(check.safe, false, 'private redirect target must be detected as unsafe');
