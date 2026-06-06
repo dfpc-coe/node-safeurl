@@ -6,8 +6,11 @@ Lightweight TypeScript library for validating URLs to prevent Server-Side Reques
 
 ## About
 
-`node-safeurl` provides three main exports:
+`node-safeurl` provides the following exports:
 
+- **`fetch(input, init?)`** — SSRF-safe drop-in replacement for the global `fetch`. Validates the URL (and every redirect hop) before making the request, and returns a `TypedResponse`. Pass `{ safeUrl: false }` to opt out of validation.
+- **`TypedResponse`** — Subclass of `Response` that adds a `.typed(schema)` method for runtime-validated JSON parsing via TypeBox.
+- **`FetchInit`** — TypeScript interface extending `RequestInit` with the optional `safeUrl` boolean field.
 - **`isSafeUrl(url)`** — Async function that validates a URL is safe to fetch. Checks protocol, hostname, IP literals, and performs DNS resolution to guard against DNS rebinding attacks.
 - **`isPrivateIPv4(address)`** — Synchronous check for private/special-purpose IPv4 addresses.
 - **`isPrivateIPv6(address)`** — Synchronous check for private/special-purpose IPv6 addresses.
@@ -23,9 +26,17 @@ npm install @tak-ps/node-safeurl
 ## Usage
 
 ```js
-import { isSafeUrl, isPrivateIPv4, isPrivateIPv6 } from '@tak-ps/node-safeurl';
+import fetch, { isSafeUrl, isPrivateIPv4, isPrivateIPv6 } from '@tak-ps/node-safeurl';
+import { Type } from '@sinclair/typebox';
 
-// Validate a URL before fetching
+// SSRF-safe fetch — validates the URL and every redirect hop automatically
+const res = await fetch('https://example.com/api/data');
+const data = await res.typed(Type.Object({ id: Type.Number() }));
+
+// Opt out of SSRF validation for trusted internal calls
+const internal = await fetch('http://localhost:3000/health', { safeUrl: false });
+
+// Validate a URL manually before fetching
 const result = await isSafeUrl('https://example.com/api');
 if (result.safe) {
     // Safe to fetch
@@ -42,6 +53,41 @@ isPrivateIPv6('2606:4700:4700::1111'); // false
 ```
 
 ## API
+
+### `fetch(input, init?): Promise<TypedResponse>`
+
+SSRF-safe drop-in replacement for the global `fetch`. Validates the initial URL and every redirect destination against `isSafeUrl` before the request is made. Throws an `Err(403)` if a URL is deemed unsafe.
+
+`init` accepts all standard `RequestInit` options plus:
+- `safeUrl` (`boolean`, default `true`) — set to `false` to skip SSRF validation (e.g. for trusted internal endpoints).
+
+Custom `dispatcher` options are rejected when `safeUrl` is `true` because they can bypass SSRF protection.
+
+### `TypedResponse`
+
+Subclass of `Response` returned by `fetch`. Adds:
+
+#### `.typed<T>(schema: TSchema): Promise<Static<T>>`
+
+Parses the response body as JSON and validates it against a [TypeBox](https://github.com/sinclairzx81/typebox) schema. Throws `Err(500)` if validation fails.
+
+```js
+const res = await fetch('https://api.example.com/user/1');
+const user = await res.typed(Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+}));
+```
+
+### `FetchInit`
+
+TypeScript interface extending `RequestInit` with one additional field:
+
+```ts
+interface FetchInit extends RequestInit {
+    safeUrl?: boolean; // default: true
+}
+```
 
 ### `isSafeUrl(href: string): Promise<{ safe: boolean; url?: URL; reason?: string }>`
 
