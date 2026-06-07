@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.3.0 - 2026-06-06
+
+- :rocket: Add allow list to allow specific URLs or IPs to bypass SSRF checks
+
 ### v1.2.0 - 2026-06-06
 
 - :rocket: Expose a `fetch` wrapper that integrates `isSafeUrl()` checks to prevent SSRF vulnerabilities in HTTP requests
