@@ -35,9 +35,9 @@ export class TypedResponse extends Response {
         });
     }
 
-    typed<T extends TSchema>(type: T): Promise<Static<T>>;
+    typed<T extends TSchema>(type: T, opts?: { verbose?: boolean }): Promise<Static<T>>;
 
-    async typed<T extends TSchema = TUnknown>(type: T): Promise<Static<T>> {
+    async typed<T extends TSchema = TUnknown>(type: T, opts?: { verbose?: boolean }): Promise<Static<T>> {
         const body = await this.json();
 
         const cached = cache.get(type);
@@ -57,6 +57,11 @@ export class TypedResponse extends Response {
 
         const errors = typeChecker.Errors(body);
         const firstError = errors[Symbol.iterator]().next().value ?? null;
+
+        if (opts?.verbose) {
+            throw new Err(500, null, `Internal Validation Error: ${JSON.stringify(firstError ?? null)} -- Body: ${JSON.stringify(body)}`);
+        }
+
         throw new Err(500, null, `Internal Validation Error: ${JSON.stringify(firstError ?? null)}`);
     }
 }

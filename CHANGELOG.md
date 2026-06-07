@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.4.0 - 2026-06-06
+
+- :rocket: Add verbose option to type response
+
 ### v1.3.0 - 2026-06-06
 
 - :rocket: Add allow list to allow specific URLs or IPs to bypass SSRF checks
