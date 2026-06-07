@@ -8,10 +8,11 @@ Lightweight TypeScript library for validating URLs to prevent Server-Side Reques
 
 `node-safeurl` provides the following exports:
 
-- **`fetch(input, init?)`** — SSRF-safe drop-in replacement for the global `fetch`. Validates the URL (and every redirect hop) before making the request, and returns a `TypedResponse`. Pass `{ safeUrl: false }` to opt out of validation.
+- **`fetch(input, init?)`** — SSRF-safe drop-in replacement for the global `fetch`. Validates the URL (and every redirect hop) before making the request, and returns a `TypedResponse`. Pass `{ safeUrl: false }` to opt out of validation entirely, or `{ safeUrlAllow: [...] }` to allow specific private-network origins while keeping all other SSRF checks active.
 - **`TypedResponse`** — Subclass of `Response` that adds a `.typed(schema)` method for runtime-validated JSON parsing via TypeBox.
-- **`FetchInit`** — TypeScript interface extending `RequestInit` with the optional `safeUrl` boolean field.
-- **`isSafeUrl(url)`** — Async function that validates a URL is safe to fetch. Checks protocol, hostname, IP literals, and performs DNS resolution to guard against DNS rebinding attacks.
+- **`FetchInit`** — TypeScript interface extending `RequestInit` with the optional `safeUrl` boolean and `safeUrlAllow` string-array fields.
+- **`isSafeUrl(href, opts?)`** — Async function that validates a URL is safe to fetch. Checks protocol, hostname, IP literals, and performs DNS resolution to guard against DNS rebinding attacks. Pass `{ allow: [...] }` to exempt specific origins or hostnames from all checks.
+- **`SafeUrlOptions`** — TypeScript interface for the options accepted by `isSafeUrl`.
 - **`isPrivateIPv4(address)`** — Synchronous check for private/special-purpose IPv4 addresses.
 - **`isPrivateIPv6(address)`** — Synchronous check for private/special-purpose IPv6 addresses.
 
@@ -33,8 +34,13 @@ import { Type } from '@sinclair/typebox';
 const res = await fetch('https://example.com/api/data');
 const data = await res.typed(Type.Object({ id: Type.Number() }));
 
-// Opt out of SSRF validation for trusted internal calls
+// Opt out of SSRF validation entirely for trusted internal calls
 const internal = await fetch('http://localhost:3000/health', { safeUrl: false });
+
+// Allow a specific private-network origin while keeping all other SSRF checks active
+const api = await fetch('http://10.0.0.5:8080/api/status', {
+    safeUrlAllow: ['http://10.0.0.5:8080'],
+});
 
 // Validate a URL manually before fetching
 const result = await isSafeUrl('https://example.com/api');
@@ -44,6 +50,11 @@ if (result.safe) {
 } else {
     console.error('Blocked:', result.reason);
 }
+
+// Validate a URL while allowing a known private endpoint
+const result2 = await isSafeUrl('http://192.168.1.10/health', {
+    allow: ['192.168.1.10'],
+});
 
 // Check individual IPs
 isPrivateIPv4('192.168.1.1');  // true
@@ -59,7 +70,8 @@ isPrivateIPv6('2606:4700:4700::1111'); // false
 SSRF-safe drop-in replacement for the global `fetch`. Validates the initial URL and every redirect destination against `isSafeUrl` before the request is made. Throws an `Err(403)` if a URL is deemed unsafe.
 
 `init` accepts all standard `RequestInit` options plus:
-- `safeUrl` (`boolean`, default `true`) — set to `false` to skip SSRF validation (e.g. for trusted internal endpoints).
+- `safeUrl` (`boolean`, default `true`) — set to `false` to skip all SSRF validation (e.g. for fully trusted internal endpoints).
+- `safeUrlAllow` (`string[]`, default `[]`) — list of origins (e.g. `"http://10.0.0.5:8080"`) or bare hostnames (e.g. `"10.0.0.5"`) that bypass SSRF checks while all other URLs remain validated. Use this instead of `safeUrl: false` when only specific private-network endpoints need to be exempted.
 
 Custom `dispatcher` options are rejected when `safeUrl` is `true` because they can bypass SSRF protection.
 
@@ -81,27 +93,39 @@ const user = await res.typed(Type.Object({
 
 ### `FetchInit`
 
-TypeScript interface extending `RequestInit` with one additional field:
+TypeScript interface extending `RequestInit` with additional fields:
 
 ```ts
 interface FetchInit extends RequestInit {
-    safeUrl?: boolean; // default: true
+    safeUrl?: boolean;      // default: true — set false to skip all SSRF checks
+    safeUrlAllow?: string[]; // origins or hostnames exempt from SSRF checks
 }
 ```
 
-### `isSafeUrl(href: string): Promise<{ safe: boolean; url?: URL; reason?: string }>`
+### `isSafeUrl(href: string, opts?: SafeUrlOptions): Promise<{ safe: boolean; url?: URL; reason?: string }>`
 
 Validates that a URL is safe to fetch from a server context. Returns an object with:
 - `safe` — `true` if the URL is safe, `false` if it should be blocked
 - `url` — The parsed `URL` object (when the URL could be parsed)
 - `reason` — A human-readable string explaining why the URL was blocked
 
-Checks performed:
+`opts` accepts:
+- `allow` (`string[]`) — origins (e.g. `"http://10.0.0.5:8080"`) or bare hostnames that are unconditionally considered safe, bypassing all checks below.
+
+Checks performed (when not matched by `allow`):
 1. URL must be parseable
 2. Protocol must be `http:` or `https:`
 3. Hostname must not be `localhost` or `0.0.0.0`
 4. IP literal hostnames must not be in private/special-purpose ranges
 5. DNS resolution results must not map to private/special-purpose IPs
+
+### `SafeUrlOptions`
+
+```ts
+interface SafeUrlOptions {
+    allow?: string[]; // origins or hostnames exempt from all SSRF checks
+}
+```
 
 ### `isPrivateIPv4(hostname: string): boolean`
 
