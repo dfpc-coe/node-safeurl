@@ -71,12 +71,47 @@ export function isPrivateIPv6(address: string): boolean {
     return isBlockedIP(addr);
 }
 
-export async function isSafeUrl(href: string): Promise<{ safe: boolean; url?: URL; reason?: string }> {
+/**
+ * Options for `isSafeUrl`.
+ */
+export interface SafeUrlOptions {
+    /**
+     * Explicit list of origins (e.g. `["http://internal-api:8080"]`) or bare
+     * hostnames (e.g. `["internal-api"]`) that are always considered safe,
+     * bypassing the SSRF block-list and DNS checks.  Use this to allow known
+     * private-network endpoints that the caller has already authorised.
+     */
+    allow?: string[];
+}
+
+export async function isSafeUrl(href: string, opts: SafeUrlOptions = {}): Promise<{ safe: boolean; url?: URL; reason?: string }> {
     let url: URL;
     try {
         url = new URL(href);
     } catch {
         return { safe: false, reason: `invalid URL: ${href}` };
+    }
+
+    // Explicit allow-list check: if the URL's origin or hostname exactly matches
+    // any entry in `allow`, skip all SSRF checks and return safe immediately.
+    if (opts.allow && opts.allow.length > 0) {
+        for (const entry of opts.allow) {
+            // Treat entries that look like origins (contain ://) as full-origin matches,
+            // otherwise treat them as bare hostname matches.
+            if (entry.includes('://')) {
+                let allowedOrigin: string;
+                try {
+                    allowedOrigin = new URL(entry).origin;
+                } catch {
+                    continue;
+                }
+                if (url.origin === allowedOrigin) return { safe: true, url };
+            } else {
+                const allowedHost = entry.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+                const urlHost = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+                if (urlHost === allowedHost) return { safe: true, url };
+            }
+        }
     }
 
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {

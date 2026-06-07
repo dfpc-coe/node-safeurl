@@ -10,6 +10,14 @@ const cache = new WeakMap<TSchema, ReturnType<typeof TypeCompiler.Compile>>();
 export interface FetchInit extends RequestInit {
     /** Set to false to disable SSRF-safe URL validation. Defaults to true. */
     safeUrl?: boolean;
+    /**
+     * Explicit list of origins (e.g. `["http://internal-api:8080"]`) or bare
+     * hostnames (e.g. `["internal-api"]`) that are always considered safe,
+     * bypassing the SSRF block-list and DNS checks.  Only used when `safeUrl`
+     * is `true` (the default).  Use this to allow known private-network
+     * endpoints such as the CloudTAK API when it runs inside a VPC.
+     */
+    safeUrlAllow?: string[];
 }
 
 export class TypedResponse extends Response {
@@ -66,7 +74,7 @@ export default async function (
     input: RequestInfo,
     init?: FetchInit,
 ): Promise<TypedResponse> {
-    const { safeUrl = true, ...fetchInit } = init ?? {};
+    const { safeUrl = true, safeUrlAllow: allow, ...fetchInit } = init ?? {};
 
     if (safeUrl) {
         // Reject custom dispatchers: they can route requests to arbitrary internal
@@ -76,7 +84,7 @@ export default async function (
         }
 
         // Validate the initial URL.
-        const check = await isSafeUrl(extractHref(input));
+        const check = await isSafeUrl(extractHref(input), { allow });
         if (!check.safe) {
             throw new Err(403, null, `Unsafe URL: ${check.reason}`);
         }
@@ -111,7 +119,7 @@ export default async function (
 
             // Resolve relative Location headers against the current request URL.
             const resolved = new URL(location, extractHref(currentInput)).href;
-            const locationCheck = await isSafeUrl(resolved);
+            const locationCheck = await isSafeUrl(resolved, { allow });
             if (!locationCheck.safe) {
                 throw new Err(403, null, `Unsafe redirect URL: ${locationCheck.reason}`);
             }
