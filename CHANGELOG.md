@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.5.0 - 2026-06-24
+
+- :rocket: Resolve DNS names of allow list if blocked by SSRF checks, allowing them to bypass the checks
+
 ### v1.4.0 - 2026-06-06
 
 - :rocket: Add verbose option to type response
