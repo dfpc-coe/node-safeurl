@@ -84,6 +84,56 @@ export interface SafeUrlOptions {
     allow?: string[];
 }
 
+/**
+ * Extracts the hostname from an allow-list entry.
+ * For origin-style entries (those containing `://`) the hostname is parsed from the URL.
+ * For bare-hostname entries the value is normalised directly.
+ * Returns `null` when the entry cannot be parsed.
+ */
+function extractAllowedHostname(entry: string): string | null {
+    if (entry.includes('://')) {
+        try {
+            return new URL(entry).hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+        } catch {
+            return null;
+        }
+    }
+    const h = entry.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    return h || null;
+}
+
+/**
+ * Resolves every hostname extracted from the allow list to its DNS addresses.
+ * IP literals are added directly without a DNS round-trip.
+ * Used as a last-resort check when the URL hostname resolves to a blocked IP
+ * but may be a DNS alias or port-variant of an explicitly-allowed internal host.
+ */
+async function resolveAllowedIPs(allow: string[]): Promise<Set<string>> {
+    const ips = new Set<string>();
+
+    await Promise.allSettled(allow.map(async (entry) => {
+        const allowedHostname = extractAllowedHostname(entry);
+        if (!allowedHostname) return;
+
+        // If the allow entry is already an IP literal, record it directly.
+        try {
+            ips.add(ipaddr.parse(allowedHostname).toString());
+            return;
+        } catch {
+            // Not an IP literal — fall through to DNS resolution.
+        }
+
+        try {
+            const records = await lookup(allowedHostname, { all: true });
+            for (const r of records) ips.add(r.address);
+        } catch {
+            // DNS lookup failed for the allowed hostname; silently skip it.
+        }
+    }));
+
+    return ips;
+}
+
 export async function isSafeUrl(href: string, opts: SafeUrlOptions = {}): Promise<{ safe: boolean; url?: URL; reason?: string }> {
     let url: URL;
     try {
@@ -142,8 +192,19 @@ export async function isSafeUrl(href: string, opts: SafeUrlOptions = {}): Promis
     // blocked; the subsequent fetch will surface any connectivity issues on its own.
     try {
         const records = await lookup(hostname, { all: true });
+        // Resolved lazily — only populated when a blocked IP is encountered and
+        // the caller supplied an allow list.
+        let allowedIPs: Set<string> | null = null;
         for (const { address } of records) {
             if (isBlockedIP(address)) {
+                // Before rejecting, check whether this blocked IP is one that an
+                // allow-list hostname resolves to.  This handles cases where the URL
+                // uses a different port or is a DNS alias of an explicitly-allowed
+                // internal host (e.g. allow=['http://media'] but URL is http://media:9997).
+                if (opts.allow && opts.allow.length > 0) {
+                    if (!allowedIPs) allowedIPs = await resolveAllowedIPs(opts.allow);
+                    if (allowedIPs.has(address)) continue;
+                }
                 return { safe: false, url, reason: `hostname resolves to blocked IP: ${address}` };
             }
         }
