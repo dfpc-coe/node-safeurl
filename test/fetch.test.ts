@@ -121,3 +121,49 @@ test('TypedResponse.typed() — reuses compiled schema cache', async () => {
     assert.deepStrictEqual(await res1.typed(Schema), { id: 1 });
     assert.deepStrictEqual(await res2.typed(Schema), { id: 2 });
 });
+
+test('TypedResponse.typed() — coerces string to integer by default', async () => {
+    const Schema = Type.Object({ expires_in: Type.Integer() });
+
+    const res = makeTypedResponse({ expires_in: '14400' });
+    const result = await res.typed(Schema);
+    assert.strictEqual(result.expires_in, 14400);
+    assert.strictEqual(typeof result.expires_in, 'number');
+});
+
+test('TypedResponse.typed() — coerces string to number by default', async () => {
+    const Schema = Type.Object({ score: Type.Number() });
+
+    const res = makeTypedResponse({ score: '3.14' });
+    const result = await res.typed(Schema);
+    assert.strictEqual(result.score, 3.14);
+});
+
+test('TypedResponse.typed() — coerces number to string by default', async () => {
+    const Schema = Type.Object({ id: Type.String() });
+
+    const res = makeTypedResponse({ id: 42 });
+    const result = await res.typed(Schema);
+    assert.strictEqual(result.id, '42');
+});
+
+test('TypedResponse.typed() — coerce: false rejects string where integer expected', async () => {
+    const Schema = Type.Object({ expires_in: Type.Integer() });
+
+    const res = makeTypedResponse({ expires_in: '14400' });
+    await assert.rejects(
+        () => res.typed(Schema, { coerce: false }),
+        (err: Error) => {
+            assert.ok(err.message.includes('Internal Validation Error'));
+            return true;
+        },
+    );
+});
+
+test('TypedResponse.typed() — coerce: false passes when types already match', async () => {
+    const Schema = Type.Object({ expires_in: Type.Integer() });
+
+    const res = makeTypedResponse({ expires_in: 14400 });
+    const result = await res.typed(Schema, { coerce: false });
+    assert.strictEqual(result.expires_in, 14400);
+});

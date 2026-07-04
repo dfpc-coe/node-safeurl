@@ -1,5 +1,6 @@
 import Err from '@openaddresses/batch-error';
 import type { Static, TSchema, TUnknown } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
 import { fetch, Response } from 'undici';
 import type { RequestInfo, RequestInit } from 'undici';
@@ -35,10 +36,11 @@ export class TypedResponse extends Response {
         });
     }
 
-    typed<T extends TSchema>(type: T, opts?: { verbose?: boolean }): Promise<Static<T>>;
+    typed<T extends TSchema>(type: T, opts?: { verbose?: boolean; coerce?: boolean }): Promise<Static<T>>;
 
-    async typed<T extends TSchema = TUnknown>(type: T, opts?: { verbose?: boolean }): Promise<Static<T>> {
-        const body = await this.json();
+    async typed<T extends TSchema = TUnknown>(type: T, opts?: { verbose?: boolean; coerce?: boolean }): Promise<Static<T>> {
+        const raw = await this.json();
+        const body = opts?.coerce === false ? raw : Value.Convert(type, raw);
 
         const cached = cache.get(type);
 
