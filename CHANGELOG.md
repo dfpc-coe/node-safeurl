@@ -12,6 +12,10 @@
 
 ### Pending Fixed
 
+### v1.6.0 - 2026-07-04
+
+- :rocket: Add Type Coercion to TypedResponse to allow for more flexible response handling
+
 ### v1.5.0 - 2026-06-24
 
 - :rocket: Resolve DNS names of allow list if blocked by SSRF checks, allowing them to bypass the checks
