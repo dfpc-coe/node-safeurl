@@ -77,6 +77,57 @@ test('safeFetch — allows custom dispatcher when safeUrl is disabled', async ()
     await agent.close();
 });
 
+test('safeFetch — aborts a slow request after the timeout', async () => {
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const client = agent.get('http://example.com');
+    client.intercept({ path: '/', method: 'GET' }).reply(200, '{}').delay(1000);
+
+    await assert.rejects(
+        () => safeFetch('http://example.com/', { safeUrl: false, dispatcher: agent, timeout: 50 }),
+        (err: Error) => {
+            assert.strictEqual(err.name, 'TimeoutError');
+            return true;
+        },
+    );
+    await agent.close();
+});
+
+test('safeFetch — timeout: 0 disables the timeout', async () => {
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const client = agent.get('http://example.com');
+    client.intercept({ path: '/', method: 'GET' }).reply(200, '{}').delay(50);
+
+    const res = await safeFetch('http://example.com/', { safeUrl: false, dispatcher: agent, timeout: 0 });
+    assert.strictEqual(res.status, 200);
+    await agent.close();
+});
+
+test('safeFetch — caller signal still aborts alongside the timeout', async () => {
+    const { MockAgent } = await import('undici');
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const client = agent.get('http://example.com');
+    client.intercept({ path: '/', method: 'GET' }).reply(200, '{}').delay(1000);
+
+    const controller = new AbortController();
+    const p = safeFetch('http://example.com/', {
+        safeUrl: false,
+        dispatcher: agent,
+        signal: controller.signal,
+    });
+    controller.abort();
+
+    await assert.rejects(p, (err: Error) => {
+        assert.strictEqual(err.name, 'AbortError');
+        return true;
+    });
+    await agent.close();
+});
+
 test('TypedResponse — preserves wrapped response url', () => {
     const raw = new Response('{}', { status: 200 });
     const typed = new TypedResponse(raw);

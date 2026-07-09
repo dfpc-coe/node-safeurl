@@ -8,6 +8,9 @@ import { isSafeUrl } from './safeurl.js';
 
 const cache = new WeakMap<TSchema, ReturnType<typeof TypeCompiler.Compile>>();
 
+/** Default request timeout (ms) applied when the caller does not override it. */
+export const DEFAULT_TIMEOUT_MS = 20_000;
+
 export interface FetchInit extends RequestInit {
     /** Set to false to disable SSRF-safe URL validation. Defaults to true. */
     safeUrl?: boolean;
@@ -19,6 +22,14 @@ export interface FetchInit extends RequestInit {
      * endpoints such as the CloudTAK API when it runs inside a VPC.
      */
     safeUrlAllow?: string[];
+    /**
+     * Abort the request after this many milliseconds.  The timeout covers the
+     * whole operation, including any redirect hops.  Defaults to
+     * {@link DEFAULT_TIMEOUT_MS} (20s).  Set to `0` (or a negative value) to
+     * disable the timeout.  When the caller also supplies a `signal`, both it
+     * and the timeout are honoured — whichever aborts first wins.
+     */
+    timeout?: number;
 }
 
 export class TypedResponse extends Response {
@@ -81,7 +92,18 @@ export default async function (
     input: RequestInfo,
     init?: FetchInit,
 ): Promise<TypedResponse> {
-    const { safeUrl = true, safeUrlAllow: allow, ...fetchInit } = init ?? {};
+    const { safeUrl = true, safeUrlAllow: allow, timeout = DEFAULT_TIMEOUT_MS, ...fetchInit } = init ?? {};
+
+    // Attach a timeout AbortSignal covering the whole operation (all redirect
+    // hops share the same deadline). If the caller passed their own signal,
+    // combine the two so either can abort the request.
+    if (timeout > 0) {
+        const timeoutSignal = AbortSignal.timeout(timeout);
+        const callerSignal = fetchInit.signal ?? undefined;
+        fetchInit.signal = callerSignal
+            ? AbortSignal.any([callerSignal, timeoutSignal])
+            : timeoutSignal;
+    }
 
     if (safeUrl) {
         // Reject custom dispatchers: they can route requests to arbitrary internal
