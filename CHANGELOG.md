@@ -12,7 +12,7 @@
 
 ### Pending Fixed
 
-### v1.7.0 - 2026-07-09
+### v1.8.0 - 2026-07-09
 
 - :tada: Add a default 20s request `timeout` to `fetch`, applied across all redirect hops and combinable with a caller-supplied `signal`
 
