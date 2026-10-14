@@ -2,7 +2,7 @@ import Err from '@openaddresses/batch-error';
 import type { Static, TSchema, TUnknown } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { TypeCompiler } from '@sinclair/typebox/compiler';
-import { fetch, Response } from 'undici';
+import { fetch, Headers, Response } from 'undici';
 import type { RequestInfo, RequestInit } from 'undici';
 import { isSafeUrl } from './safeurl.js';
 
@@ -162,6 +162,14 @@ export default async function (
             if (switchToGet) {
                 fetchInit.method = 'GET';
                 fetchInit.body = undefined;
+                // Fetch's redirect algorithm removes headers describing the
+                // discarded body. Copy all HeadersInit forms without mutating
+                // the caller's headers.
+                const headers = new Headers(fetchInit.headers);
+                for (const name of ['content-encoding', 'content-language', 'content-location', 'content-type', 'content-length']) {
+                    headers.delete(name);
+                }
+                fetchInit.headers = headers;
             }
 
             currentInput = resolved;
